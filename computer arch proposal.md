@@ -30,6 +30,9 @@ The collected data will be analyzed by plotting graphs that compare input size v
 
 Finally, we will interpret the results and discuss how CPU-related factors such as caching and memory access patterns may influence observed performance.
 
+Professor Notes: Consider other variations. e.g. Data is "mostly sorted". Data is sorted in reverse order.
+consider including other performance metrics such as branch prediction, pipeline stalls and cache miss rates. All are relevant for sorting algorithms.
+
 ---
 
 ## **3\. Deliverables**
