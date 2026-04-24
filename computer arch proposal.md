@@ -52,7 +52,7 @@ The project will include the following deliverables:
 The project will be completed collaboratively, with each team member assigned specific responsibilities:
 
 * **Basil Mohad – Algorithm Implementation Lead**  
-   Responsible for implementing sorting algorithms and ensuring correctness and efficiency.
+   Implements Bubble Sort, Merge Sort, and Quick Sort in Python (as described in the methodology), checks correctness on test inputs, and keeps the three implementations comparable for fair timing runs.
 
 * **Andre Mercado – Data Collection & Testing Lead**  
    Responsible for running experiments, collecting timing data, and maintaining consistency across tests.
