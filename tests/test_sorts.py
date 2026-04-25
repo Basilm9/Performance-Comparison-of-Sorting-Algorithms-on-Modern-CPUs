@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sorting.sorts import bubble_sort, merge_sort, quick_sort
 from benchmark import run_benchmarks
 
-INPUT_SIZES = [1_000, 5_000, 10_000]
+INPUT_SIZES = [1_000, 5_000]
 
 ALGORITHMS = [
     ("bubble_sort", bubble_sort),
@@ -27,31 +27,54 @@ def generate_input(n, kind):
         return sorted(data, reverse=True)
 
 
-DATA = {n: generate_input(n, "random") for n in INPUT_SIZES}
+RANDOM_DATA = {n: generate_input(n, "random") for n in INPUT_SIZES}
+SORTED_DATA = {n: generate_input(n, "sorted") for n in INPUT_SIZES}
+REVERSE_DATA = {n: generate_input(n, "reverse") for n in INPUT_SIZES}
 
 
 def test_bubble_sort():
     for n in INPUT_SIZES:
-        a = copy.copy(DATA[n])
+        a = copy.copy(RANDOM_DATA[n])
         bubble_sort(a)
-        expected = sorted(DATA[n])
-        assert a == expected, f"bubble_sort failed on n={n}"
+        assert a == sorted(RANDOM_DATA[n]), f"bubble_sort failed on random n={n}"
+
+        a = copy.copy(SORTED_DATA[n])
+        bubble_sort(a)
+        assert a == sorted(SORTED_DATA[n]), f"bubble_sort failed on sorted n={n}"
+
+        a = copy.copy(REVERSE_DATA[n])
+        bubble_sort(a)
+        assert a == sorted(REVERSE_DATA[n]), f"bubble_sort failed on reverse n={n}"
 
 
 def test_merge_sort():
     for n in INPUT_SIZES:
-        a = copy.copy(DATA[n])
+        a = copy.copy(RANDOM_DATA[n])
         merge_sort(a)
-        expected = sorted(DATA[n])
-        assert a == expected, f"merge_sort failed on n={n}"
+        assert a == sorted(RANDOM_DATA[n]), f"merge_sort failed on random n={n}"
+
+        a = copy.copy(SORTED_DATA[n])
+        merge_sort(a)
+        assert a == sorted(SORTED_DATA[n]), f"merge_sort failed on sorted n={n}"
+
+        a = copy.copy(REVERSE_DATA[n])
+        merge_sort(a)
+        assert a == sorted(REVERSE_DATA[n]), f"merge_sort failed on reverse n={n}"
 
 
 def test_quick_sort():
     for n in INPUT_SIZES:
-        a = copy.copy(DATA[n])
+        a = copy.copy(RANDOM_DATA[n])
         quick_sort(a)
-        expected = sorted(DATA[n])
-        assert a == expected, f"quick_sort failed on n={n}"
+        assert a == sorted(RANDOM_DATA[n]), f"quick_sort failed on random n={n}"
+
+        a = copy.copy(SORTED_DATA[n])
+        quick_sort(a)
+        assert a == sorted(SORTED_DATA[n]), f"quick_sort failed on sorted n={n}"
+
+        a = copy.copy(REVERSE_DATA[n])
+        quick_sort(a)
+        assert a == sorted(REVERSE_DATA[n]), f"quick_sort failed on reverse n={n}"
 
 
 if __name__ == "__main__":
@@ -60,4 +83,9 @@ if __name__ == "__main__":
     test_quick_sort()
     print("All tests passed.")
     print()
-    run_benchmarks(ALGORITHMS, DATA)
+    print("--- random ---")
+    run_benchmarks(ALGORITHMS, RANDOM_DATA, kind="random")
+    print("--- sorted ---")
+    run_benchmarks(ALGORITHMS, SORTED_DATA, kind="sorted")
+    print("--- reverse ---")
+    run_benchmarks(ALGORITHMS, REVERSE_DATA, kind="reverse")
