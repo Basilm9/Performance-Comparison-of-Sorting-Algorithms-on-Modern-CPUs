@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 from sorting.sorts import bubble_sort, merge_sort, quick_sort
 from benchmark import run_benchmarks
 
-INPUT_SIZES = [1_000, 5_000]
+INPUT_SIZES = [1_000, 5_000, 10_000, 50_000, 100_000]
 
 ALGORITHMS = [
     ("bubble_sort", bubble_sort),
