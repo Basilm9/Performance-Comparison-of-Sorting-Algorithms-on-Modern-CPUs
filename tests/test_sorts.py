@@ -78,14 +78,19 @@ def test_quick_sort():
 
 
 if __name__ == "__main__":
+    output = "data/results.csv"
+    for arg in sys.argv[1:]:
+        if arg.startswith("--output"):
+            output = arg.split("=")[1] if "=" in arg else sys.argv[sys.argv.index(arg) + 1]
+
     test_bubble_sort()
     test_merge_sort()
     test_quick_sort()
     print("All tests passed.")
     print()
     print("--- random ---")
-    run_benchmarks(ALGORITHMS, RANDOM_DATA, kind="random")
+    run_benchmarks(ALGORITHMS, RANDOM_DATA, kind="random", output_file=output)
     print("--- sorted ---")
-    run_benchmarks(ALGORITHMS, SORTED_DATA, kind="sorted")
+    run_benchmarks(ALGORITHMS, SORTED_DATA, kind="sorted", output_file=output)
     print("--- reverse ---")
-    run_benchmarks(ALGORITHMS, REVERSE_DATA, kind="reverse")
+    run_benchmarks(ALGORITHMS, REVERSE_DATA, kind="reverse", output_file=output)

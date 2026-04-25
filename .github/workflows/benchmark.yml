@@ -19,12 +19,12 @@ jobs:
           python-version: "3.12"
 
       - name: Run benchmarks
-        run: python tests/test_sorts.py
+        run: python tests/test_sorts.py --output data/results-${{ matrix.runner }}.csv
 
       - name: Commit results
         run: |
           git config user.email "andre.mercado44@gmail.com"
           git config user.name "andre"
-          git add data/results.csv
+          git add data/results-${{ matrix.runner }}.csv
           git diff --cached --quiet || git commit -m "benchmark results from ${{ matrix.runner }}"
           git pull --rebase && git push
