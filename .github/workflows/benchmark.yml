@@ -27,4 +27,4 @@ jobs:
           git config user.name "andre"
           git add data/results.csv
           git diff --cached --quiet || git commit -m "benchmark results from ${{ matrix.runner }}"
-          git push
+          git pull --rebase && git push
