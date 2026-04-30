@@ -24,16 +24,10 @@ jobs:
       - name: Run valgrind (cache + branch miss rates)
         run: python tests/run_valgrind.py --output data/results-${{ matrix.runner }}.csv
 
-      - name: Install matplotlib
-        run: pip install matplotlib
-
-      - name: Regenerate charts
-        run: python data/Charts.py
-
       - name: Commit results
         run: |
           git config user.email "andre.mercado44@gmail.com"
           git config user.name "andre"
-          git add data/results-${{ matrix.runner }}.csv data/*.png
-          git diff --cached --quiet || git commit -m "valgrind results + charts from ${{ matrix.runner }}"
+          git add data/results-${{ matrix.runner }}.csv
+          git diff --cached --quiet || git commit -m "valgrind results from ${{ matrix.runner }}"
           git pull --rebase && git push
