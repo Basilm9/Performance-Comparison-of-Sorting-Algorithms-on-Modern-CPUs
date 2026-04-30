@@ -10,7 +10,7 @@ Usage: python tests/run_valgrind.py --output data/results-<runner>.csv
 import csv, os, platform, re, subprocess, sys
 
 ARCH      = platform.machine()
-NS        = [1000, 5000, 10000, 20000]
+NS        = [1000, 5000, 10000, 20000, 40000]
 ALGOS     = ['bubble_sort', 'merge_sort', 'quick_sort']
 KINDS     = ['random', 'sorted', 'reverse', 'mostly_sorted']
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
