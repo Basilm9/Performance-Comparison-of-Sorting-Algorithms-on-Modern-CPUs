@@ -124,7 +124,80 @@ def fmt_time(v):
 nk = len(KINDS)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Chart 1: Scaling Overview
+# Chart 1: Algorithm Comparison — all 3 on same axes, random input
+# 1×2 subplots: x86_64 | aarch64
+# The headline chart: shows O(n²) bubble explosion vs O(n log n) merge/quick
+# ─────────────────────────────────────────────────────────────────────────────
+print('--- Chart 1: Algorithm Comparison (random input) ---')
+fig, axes = plt.subplots(1, 2, figsize=(18, 7))
+fig.suptitle('Sorting Algorithm Comparison — Random Input',
+             fontsize=18, fontweight='bold')
+
+for col, (arch, arch_label) in enumerate([('x86_64', 'x86_64'), ('aarch64', 'aarch64')]):
+    ax = axes[col]
+    for algo in ALGOS:
+        vals = [avg(arch, algo, n, 'random') for n in NS]
+        ax.plot(NS, vals, color=ALGO_COLORS[algo], marker='o',
+                linewidth=2.5, markersize=8, label=ALGO_LABELS[algo], zorder=3)
+    ax.set_title(arch_label, fontweight='bold', fontsize=15)
+    ax.set_xlabel('Input Size (n)')
+    ax.set_ylabel('Time (s)')
+    ax.set_xticks(NS)
+    ax.set_xticklabels([f'{n//1000}k' for n in NS])
+    ax.legend(frameon=True)
+
+plt.tight_layout()
+save(fig, 'algorithm_comparison.png')
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 2: Theoretical Complexity Fit
+# Log-log plot: actual data + O(n²) and O(n log n) reference curves
+# Slope on log-log: O(n²)→2, O(n log n)→~1. Connects theory to measured data.
+# ─────────────────────────────────────────────────────────────────────────────
+print('--- Chart 2: Theoretical Complexity Fit ---')
+fig, axes = plt.subplots(1, 2, figsize=(18, 7))
+fig.suptitle('Actual Performance vs Theoretical Complexity — Random Input (log-log)',
+             fontsize=16, fontweight='bold')
+
+ns_fine = np.linspace(NS[0], NS[-1], 300)
+
+for col, arch in enumerate(['x86_64', 'aarch64']):
+    ax = axes[col]
+
+    # plot actual data
+    for algo in ALGOS:
+        vals = [avg(arch, algo, n, 'random') for n in NS]
+        ax.loglog(NS, vals, color=ALGO_COLORS[algo], marker='o',
+                  linewidth=2.5, markersize=8, label=f'{ALGO_LABELS[algo]} (actual)', zorder=3)
+
+    # anchor theoretical curves to bubble_sort at n=1000 and merge_sort at n=1000
+    bubble_base = avg(arch, 'bubble_sort', NS[0], 'random')
+    merge_base  = avg(arch, 'merge_sort',  NS[0], 'random')
+
+    if bubble_base > 0:
+        c2 = bubble_base / (NS[0] ** 2)
+        ax.loglog(ns_fine, c2 * ns_fine ** 2,
+                  color=ALGO_COLORS['bubble_sort'], linewidth=1.5,
+                  linestyle=':', label='O(n²) theoretical', zorder=2)
+
+    if merge_base > 0:
+        c_nlogn = merge_base / (NS[0] * np.log2(NS[0]))
+        ax.loglog(ns_fine, c_nlogn * ns_fine * np.log2(ns_fine),
+                  color=ALGO_COLORS['merge_sort'], linewidth=1.5,
+                  linestyle=':', label='O(n log n) theoretical', zorder=2)
+
+    ax.set_title(arch, fontweight='bold', fontsize=15)
+    ax.set_xlabel('Input Size (n, log scale)')
+    ax.set_ylabel('Time (s, log scale)')
+    ax.set_xticks(NS)
+    ax.set_xticklabels([f'{n//1000}k' for n in NS])
+    ax.legend(frameon=True, fontsize=9)
+
+plt.tight_layout()
+save(fig, 'complexity_fit.png')
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 3: Scaling Overview — per algo per kind, both archs
 # Rows = input kind, Cols = algorithm
 # Each subplot: 2 lines (x86_64 solid, aarch64 dashed)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -369,5 +442,5 @@ if HAS_PERF_DATA:
         plt.tight_layout()
         save(fig, 'perf_counters.png')
 
-charts_saved = 5 + (1 if HAS_PERF_DATA else 0)
+charts_saved = 7 + (1 if HAS_PERF_DATA else 0)
 print(f'\nDone! {charts_saved} PNGs saved.')
