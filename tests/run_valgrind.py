@@ -10,7 +10,7 @@ Usage: python tests/run_valgrind.py --output data/results-<runner>.csv
 import csv, os, platform, re, subprocess, sys
 
 ARCH      = platform.machine()
-N         = 10000
+NS        = [1000, 5000, 10000, 20000, 40000]
 ALGOS     = ['bubble_sort', 'merge_sort', 'quick_sort']
 KINDS     = ['random', 'sorted', 'reverse', 'mostly_sorted']
 TESTS_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -32,12 +32,12 @@ def compile_c():
     print(f'Compiled {C_SRC} -> {C_BIN}', flush=True)
 
 
-def run_one(algo, kind, debug=False):
-    tmp = f'/tmp/cg_{algo}_{kind}.out'
+def run_one(algo, n, kind, debug=False):
+    tmp = f'/tmp/cg_{algo}_{n}_{kind}.out'
     cmd = [
         'valgrind', '--tool=cachegrind', '--cache-sim=yes', '--branch-sim=yes',
         f'--cachegrind-out-file={tmp}',
-        C_BIN, algo, str(N), kind,
+        C_BIN, algo, str(n), kind,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     try:
@@ -75,19 +75,19 @@ def main():
 
     vg = {}
     first = True
-    for algo in ALGOS:
-        for kind in KINDS:
-            print(f'Running valgrind: {algo} n={N} kind={kind} ...', flush=True)
-            metrics = run_one(algo, kind, debug=first)
-            first = False
-            vg[(algo, kind)] = metrics
-            print(f"  d1={metrics['d1_miss_rate']}% lld={metrics['lld_miss_rate']}% branch={metrics['branch_miss_rate']}%")
+    for n in NS:
+        for algo in ALGOS:
+            for kind in KINDS:
+                print(f'Running valgrind: {algo} n={n} kind={kind} ...', flush=True)
+                metrics = run_one(algo, n, kind, debug=first)
+                first = False
+                vg[(algo, n, kind)] = metrics
+                print(f"  d1={metrics['d1_miss_rate']}% lld={metrics['lld_miss_rate']}% branch={metrics['branch_miss_rate']}%")
 
     for row in rows:
-        if int(row['n']) == N:
-            key = (row['algorithm'], row['kind'])
-            if key in vg:
-                row.update(vg[key])
+        key = (row['algorithm'], int(row['n']), row['kind'])
+        if key in vg:
+            row.update(vg[key])
 
     for row in rows:
         for col in ('d1_miss_rate', 'lld_miss_rate', 'branch_miss_rate'):
