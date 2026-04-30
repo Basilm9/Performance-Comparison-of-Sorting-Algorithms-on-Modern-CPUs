@@ -24,9 +24,16 @@ jobs:
           echo "=== Memory ===" && free -h
           echo "=== OS ===" && uname -a && cat /etc/os-release
 
-      - name: Install perf tools
+      - name: Run benchmarks
         run: |
-          sudo apt-get install -y linux-tools-generic || true
-          sudo apt-get install -y linux-tools-$(uname -r) || true
-          sudo sh -c 'echo -1 > /proc/sys/kernel/perf_event_paranoid'
+          rm -f data/results-${{ matrix.runner }}.csv
+          python tests/test_sorts.py --output data/results-${{ matrix.runner }}.csv
+
+      - name: Commit results
+        run: |
+          git config user.email "andre.mercado44@gmail.com"
+          git config user.name "andre"
+          git add data/results-${{ matrix.runner }}.csv
+          git diff --cached --quiet || git commit -m "benchmark results from ${{ matrix.runner }}"
+          git pull --rebase && git push
 

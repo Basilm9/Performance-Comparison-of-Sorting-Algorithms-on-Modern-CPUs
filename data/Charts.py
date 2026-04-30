@@ -1,6 +1,6 @@
 """
 Benchmark Chart Generator
-Produces up to 6 PNGs: 3 time, 2 memory, 1 perf (only when perf data present).
+Produces 7 PNGs: 2 headline + 3 time + 2 memory.
 Reads from the two CSV files in the same folder as this script.
 """
 
@@ -37,36 +37,6 @@ def avg(arch, algo, n, kind):
 def avg_mem(arch, algo, n):
     vals = mem_groups[(arch, algo, n)]
     return statistics.mean(vals) if vals else 0
-
-# ── perf counter groups (present only in new CSV runs) ────────────────────────
-PERF_COLS = (
-    'branch_misses', 'branch_instructions',
-    'cache_misses',  'cache_references',
-    'stalled_cycles_frontend', 'stalled_cycles_backend',
-    'instructions',  'cycles',
-)
-
-perf_groups = defaultdict(list)
-for r in all_rows:
-    for col in PERF_COLS:
-        val = r.get(col, '')
-        if val and val != '':
-            try:
-                perf_groups[(r['arch'], r['algorithm'], int(r['n']), r['kind'], col)].append(int(val))
-            except (ValueError, KeyError):
-                pass
-
-def avg_perf(arch, algo, n, kind, metric):
-    vals = perf_groups[(arch, algo, n, kind, metric)]
-    return statistics.mean(vals) if vals else 0
-
-def rate_perf(arch, algo, n, kind, num_metric, den_metric):
-    """Return num/den ratio, or 0 if denominator missing."""
-    num = avg_perf(arch, algo, n, kind, num_metric)
-    den = avg_perf(arch, algo, n, kind, den_metric)
-    return num / den if den > 0 else 0
-
-HAS_PERF_DATA = bool(perf_groups)
 
 # ── constants ──────────────────────────────────────────────────────────────────
 NS    = [1000, 5000, 10000, 20000, 40000]
@@ -372,75 +342,4 @@ ax.legend(frameon=True, ncol=2, fontsize=9)
 plt.tight_layout()
 save(fig, 'memory_vs_time_tradeoff.png')
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Chart 6: Hardware Performance Counters (only when perf data present)
-# 3 rows × nk cols — one row per professor-requested metric:
-#   row 0: branch misprediction rate  = branch_misses / branch_instructions
-#   row 1: cache miss rate            = cache_misses / cache_references
-#   row 2: pipeline stall rate        = (stalled_cycles_frontend + stalled_cycles_backend) / cycles
-# Each subplot: grouped bars (3 algos × 2 archs) at n=40,000
-# ─────────────────────────────────────────────────────────────────────────────
-if HAS_PERF_DATA:
-    perf_kinds = [k for k in KINDS
-                  if any(perf_groups.get((arch, algo, 40000, k, 'branch_misses'))
-                         for arch in ('x86_64', 'aarch64') for algo in ALGOS)]
-    if perf_kinds:
-        print('--- Chart 6: Hardware Performance Counters (rates) ---')
-        npk = len(perf_kinds)
-        fig, axes = plt.subplots(3, npk, figsize=(7 * npk, 18))
-        fig.suptitle(
-            'Hardware Performance Counter Rates at n=40,000\n'
-            'Branch misprediction rate · Cache miss rate · Pipeline stall rate',
-            fontsize=14, fontweight='bold'
-        )
-        if npk == 1:
-            axes = [[axes[0]], [axes[1]], [axes[2]]]
-
-        x = np.arange(len(ALGOS))
-
-        def _stall_rate(arch, algo, n, kind):
-            fe = avg_perf(arch, algo, n, kind, 'stalled_cycles_frontend')
-            be = avg_perf(arch, algo, n, kind, 'stalled_cycles_backend')
-            cy = avg_perf(arch, algo, n, kind, 'cycles')
-            return (fe + be) / cy if cy > 0 else 0
-
-        metric_rows = [
-            ('Branch Misprediction Rate',
-             lambda arch, algo, k: rate_perf(arch, algo, 40000, k,
-                                             'branch_misses', 'branch_instructions'),
-             'Misses / Total Branches'),
-            ('Cache Miss Rate',
-             lambda arch, algo, k: rate_perf(arch, algo, 40000, k,
-                                             'cache_misses', 'cache_references'),
-             'Misses / Total Cache Refs'),
-            ('Pipeline Stall Rate',
-             lambda arch, algo, k: _stall_rate(arch, algo, 40000, k),
-             'Stalled Cycles / Total Cycles'),
-        ]
-
-        for row, (title, val_fn, ylabel) in enumerate(metric_rows):
-            for col, kind in enumerate(perf_kinds):
-                ax = axes[row][col]
-                x86_vals = [val_fn('x86_64',  algo, kind) for algo in ALGOS]
-                arm_vals = [val_fn('aarch64', algo, kind) for algo in ALGOS]
-                bars1 = ax.bar(x - W/2, x86_vals, W, color=X86_COLOR, label='x86_64',  zorder=3)
-                bars2 = ax.bar(x + W/2, arm_vals,  W, color=ARM_COLOR, label='aarch64', zorder=3)
-                ax.set_title(f'{title}\n{KIND_LABELS[kind]}', fontweight='bold')
-                ax.set_xlabel('Algorithm')
-                ax.set_ylabel(ylabel)
-                ax.set_xticks(x)
-                ax.set_xticklabels([ALGO_LABELS[a] for a in ALGOS])
-                ax.yaxis.set_major_formatter(
-                    plt.FuncFormatter(lambda v, _: f'{v:.1%}'))
-                ax.legend(frameon=True)
-                for bar in list(bars1) + list(bars2):
-                    h = bar.get_height()
-                    if h > 0:
-                        ax.text(bar.get_x() + bar.get_width() / 2, h * 1.02,
-                                f'{h:.1%}', ha='center', va='bottom', fontsize=8)
-
-        plt.tight_layout()
-        save(fig, 'perf_counters.png')
-
-charts_saved = 7 + (1 if HAS_PERF_DATA else 0)
-print(f'\nDone! {charts_saved} PNGs saved.')
+print('\nDone! 7 PNGs saved.')
