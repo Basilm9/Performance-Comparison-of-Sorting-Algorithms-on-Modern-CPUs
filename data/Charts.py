@@ -342,4 +342,106 @@ ax.legend(frameon=True, ncol=2, fontsize=9)
 plt.tight_layout()
 save(fig, 'memory_vs_time_tradeoff.png')
 
-print('\nDone! 7 PNGs saved.')
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 8 & 9: Valgrind Cache + Branch Miss Rates (when data present)
+# Reads d1_miss_rate, lld_miss_rate, branch_miss_rate from main CSVs (n=5000 rows)
+# Chart 8: D1 (L1) + LLd (L3) cache miss rates — 2×nk grid
+# Chart 9: Branch misprediction rate — 1×nk grid
+# ─────────────────────────────────────────────────────────────────────────────
+vg_rows = [r for r in all_rows if r.get('d1_miss_rate', '') != '']
+
+if vg_rows:
+    vg_groups = defaultdict(list)
+    for r in vg_rows:
+        key = (r['arch'], r['algorithm'], r['kind'])
+        for col in ('d1_miss_rate', 'lld_miss_rate', 'branch_miss_rate'):
+            val = r.get(col, '')
+            if val and val != '':
+                try:
+                    vg_groups[(r['arch'], r['algorithm'], r['kind'], col)].append(float(val))
+                except ValueError:
+                    pass
+
+    def avg_vg(arch, algo, kind, metric):
+        vals = vg_groups[(arch, algo, kind, metric)]
+        return statistics.mean(vals) if vals else 0
+
+    vg_kinds = [k for k in KINDS
+                if any(vg_groups.get(('x86_64', algo, k, 'd1_miss_rate'))
+                       or vg_groups.get(('aarch64', algo, k, 'd1_miss_rate'))
+                       for algo in ALGOS)]
+
+    if vg_kinds:
+        nvk = len(vg_kinds)
+        x   = np.arange(len(ALGOS))
+
+        # Chart 8: Cache miss rates (D1 + LLd), 2 rows × nvk cols
+        print('--- Chart 8: Cache Miss Rates (valgrind) ---')
+        fig, axes = plt.subplots(2, nvk, figsize=(7 * nvk, 12))
+        fig.suptitle('Cache Miss Rates — valgrind cachegrind simulation\n'
+                     'D1 = L1 data cache · LLd = L3 last-level cache',
+                     fontsize=14, fontweight='bold')
+        if nvk == 1:
+            axes = [[axes[0]], [axes[1]]]
+
+        cache_metrics = [('d1_miss_rate', 'L1 Data Cache Miss Rate (%)'),
+                         ('lld_miss_rate', 'L3 Last-Level Cache Miss Rate (%)')]
+
+        for row, (metric, ylabel) in enumerate(cache_metrics):
+            for col, kind in enumerate(vg_kinds):
+                ax = axes[row][col]
+                x86_vals = [avg_vg('x86_64',  algo, kind, metric) for algo in ALGOS]
+                arm_vals = [avg_vg('aarch64', algo, kind, metric) for algo in ALGOS]
+                bars1 = ax.bar(x - W/2, x86_vals, W, color=X86_COLOR, label='x86_64',  zorder=3)
+                bars2 = ax.bar(x + W/2, arm_vals,  W, color=ARM_COLOR, label='aarch64', zorder=3)
+                ax.set_title(f'{KIND_LABELS[kind]}', fontweight='bold')
+                ax.set_xlabel('Algorithm')
+                ax.set_ylabel(ylabel)
+                ax.set_xticks(x)
+                ax.set_xticklabels([ALGO_LABELS[a] for a in ALGOS])
+                ax.legend(frameon=True)
+                for bar in list(bars1) + list(bars2):
+                    h = bar.get_height()
+                    if h > 0:
+                        ax.text(bar.get_x() + bar.get_width() / 2, h * 1.02,
+                                f'{h:.2f}%', ha='center', va='bottom', fontsize=8)
+
+        plt.tight_layout()
+        save(fig, 'cache_miss_rates.png')
+
+        # Chart 9: Branch misprediction rate, 1 row × nvk cols
+        print('--- Chart 9: Branch Misprediction Rate (valgrind) ---')
+        fig, axes = plt.subplots(1, nvk, figsize=(7 * nvk, 7))
+        fig.suptitle('Branch Misprediction Rate — valgrind branch simulation',
+                     fontsize=14, fontweight='bold')
+        if nvk == 1:
+            axes = [axes]
+
+        for col, kind in enumerate(vg_kinds):
+            ax = axes[col]
+            x86_vals = [avg_vg('x86_64',  algo, kind, 'branch_miss_rate') for algo in ALGOS]
+            arm_vals = [avg_vg('aarch64', algo, kind, 'branch_miss_rate') for algo in ALGOS]
+            bars1 = ax.bar(x - W/2, x86_vals, W, color=X86_COLOR, label='x86_64',  zorder=3)
+            bars2 = ax.bar(x + W/2, arm_vals,  W, color=ARM_COLOR, label='aarch64', zorder=3)
+            ax.set_title(KIND_LABELS[kind], fontweight='bold')
+            ax.set_xlabel('Algorithm')
+            ax.set_ylabel('Branch Misprediction Rate (%)')
+            ax.set_xticks(x)
+            ax.set_xticklabels([ALGO_LABELS[a] for a in ALGOS])
+            ax.legend(frameon=True)
+            for bar in list(bars1) + list(bars2):
+                h = bar.get_height()
+                if h > 0:
+                    ax.text(bar.get_x() + bar.get_width() / 2, h * 1.02,
+                            f'{h:.2f}%', ha='center', va='bottom', fontsize=8)
+
+        plt.tight_layout()
+        save(fig, 'branch_miss_rates.png')
+
+        extra = 2
+    else:
+        extra = 0
+else:
+    extra = 0
+
+print(f'\nDone! {7 + extra} PNGs saved.')

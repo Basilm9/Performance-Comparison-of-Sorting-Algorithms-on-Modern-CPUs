@@ -32,7 +32,7 @@ def run_benchmarks(algorithms, data_by_size, kind="random", output_file="data/re
             total_time = sum(time_one(fn, data) for _ in range(RUNS))
             peak_mem = memory_one(fn, data)
             mean_time = total_time / RUNS
-            rows.append([name, n, kind, f"{mean_time:.6f}", f"{peak_mem / 1024:.1f}", ARCH])
+            rows.append([name, n, kind, f"{mean_time:.6f}", f"{peak_mem / 1024:.1f}", ARCH, '', '', ''])
             print(f"{name} n={n} kind={kind} time={mean_time:.6f}s memory={peak_mem / 1024:.1f}KB arch={ARCH}")
 
     write_header = True
@@ -45,5 +45,6 @@ def run_benchmarks(algorithms, data_by_size, kind="random", output_file="data/re
     with open(output_file, "a", newline="") as f:
         writer = csv.writer(f)
         if write_header:
-            writer.writerow(["algorithm", "n", "kind", "seconds_mean", "memory_kb", "arch"])
+            writer.writerow(["algorithm", "n", "kind", "seconds_mean", "memory_kb", "arch",
+                             "d1_miss_rate", "lld_miss_rate", "branch_miss_rate"])
         writer.writerows(rows)
