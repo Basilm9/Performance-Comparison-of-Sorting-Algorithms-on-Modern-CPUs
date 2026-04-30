@@ -19,7 +19,7 @@ FIELDNAMES = ['algorithm', 'n', 'kind', 'seconds_mean', 'memory_kb', 'arch',
 
 def run_one(algo, kind, debug=False):
     cmd = [
-        'valgrind', '--tool=cachegrind', '--branch-sim=yes',
+        'valgrind', '--tool=cachegrind', '--cache-sim=yes', '--branch-sim=yes',
         '--cachegrind-out-file=/dev/null',
         sys.executable, RUNNER, algo, str(N), kind,
     ]
