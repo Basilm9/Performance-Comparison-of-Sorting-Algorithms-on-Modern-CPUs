@@ -18,8 +18,16 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Install perf tools
+        run: |
+          sudo apt-get install -y linux-tools-generic || true
+          sudo apt-get install -y linux-tools-$(uname -r) || true
+          sudo sh -c 'echo -1 > /proc/sys/kernel/perf_event_paranoid'
+
       - name: Run benchmarks
-        run: python tests/test_sorts.py --output data/results-${{ matrix.runner }}.csv
+        run: |
+          rm -f data/results-${{ matrix.runner }}.csv
+          python tests/test_sorts.py --output data/results-${{ matrix.runner }}.csv
 
       - name: Commit results
         run: |

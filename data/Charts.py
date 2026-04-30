@@ -1,6 +1,6 @@
 """
 Benchmark Chart Generator
-One PNG per chart — large and readable.
+Produces up to 6 PNGs: 3 time, 2 memory, 1 perf (only when perf data present).
 Reads from the two CSV files in the same folder as this script.
 """
 
@@ -22,37 +22,91 @@ all_rows = (
     load_csv('results-ubuntu-24.04-arm.csv')
 )
 
-groups = defaultdict(list)
+# ── time + memory groups ───────────────────────────────────────────────────────
+groups     = defaultdict(list)
+mem_groups = defaultdict(list)
 for r in all_rows:
-    groups[(r['arch'], r['algorithm'], int(r['n']), r['kind'])].append(float(r['seconds_mean']))
+    key = (r['arch'], r['algorithm'], int(r['n']), r['kind'])
+    groups[key].append(float(r['seconds_mean']))
+    mem_groups[(r['arch'], r['algorithm'], int(r['n']))].append(float(r['memory_kb']))
 
 def avg(arch, algo, n, kind):
     vals = groups[(arch, algo, n, kind)]
     return statistics.mean(vals) if vals else 0
 
-NS    = [1000, 5000, 10000, 20000, 40000]
-KINDS = ['random', 'sorted', 'reverse']
-KIND_TITLES = {'random': 'Random Input', 'sorted': 'Sorted Input', 'reverse': 'Reverse Input'}
+def avg_mem(arch, algo, n):
+    vals = mem_groups[(arch, algo, n)]
+    return statistics.mean(vals) if vals else 0
 
-BLUE   = '#4472C4'
-RED    = '#C0504D'
-TEAL   = '#2BAA8A'
-ORANGE = '#D95F00'
+# ── perf counter groups (present only in new CSV runs) ────────────────────────
+PERF_COLS = (
+    'branch_misses', 'branch_instructions',
+    'cache_misses',  'cache_references',
+    'stalled_cycles_frontend', 'stalled_cycles_backend',
+    'instructions',  'cycles',
+)
+
+perf_groups = defaultdict(list)
+for r in all_rows:
+    for col in PERF_COLS:
+        val = r.get(col, '')
+        if val and val != '':
+            try:
+                perf_groups[(r['arch'], r['algorithm'], int(r['n']), r['kind'], col)].append(int(val))
+            except (ValueError, KeyError):
+                pass
+
+def avg_perf(arch, algo, n, kind, metric):
+    vals = perf_groups[(arch, algo, n, kind, metric)]
+    return statistics.mean(vals) if vals else 0
+
+def rate_perf(arch, algo, n, kind, num_metric, den_metric):
+    """Return num/den ratio, or 0 if denominator missing."""
+    num = avg_perf(arch, algo, n, kind, num_metric)
+    den = avg_perf(arch, algo, n, kind, den_metric)
+    return num / den if den > 0 else 0
+
+HAS_PERF_DATA = bool(perf_groups)
+
+# ── constants ──────────────────────────────────────────────────────────────────
+NS    = [1000, 5000, 10000, 20000, 40000]
+ALGOS = ['bubble_sort', 'merge_sort', 'quick_sort']
+
+ALL_KINDS   = ['random', 'sorted', 'reverse', 'mostly_sorted']
+KIND_LABELS = {
+    'random':        'Random',
+    'sorted':        'Sorted',
+    'reverse':       'Reverse',
+    'mostly_sorted': 'Mostly Sorted (90%)',
+}
+ALGO_LABELS  = {'bubble_sort': 'Bubble Sort', 'merge_sort': 'Merge Sort', 'quick_sort': 'Quick Sort'}
+ALGO_COLORS  = {'bubble_sort': '#4472C4', 'merge_sort': '#2BAA8A', 'quick_sort': '#D95F00'}
+
+X86_COLOR = '#4472C4'
+ARM_COLOR = '#C0504D'
+W = 0.35
+
+# only render kinds that actually have data
+KINDS = [k for k in ALL_KINDS
+         if any(groups.get((arch, algo, n, k))
+                for arch in ('x86_64', 'aarch64')
+                for algo in ALGOS
+                for n in NS)]
 
 plt.rcParams.update({
-    'font.family': 'DejaVu Sans',
-    'axes.spines.top': False,
+    'font.family':       'DejaVu Sans',
+    'axes.spines.top':   False,
     'axes.spines.right': False,
-    'axes.grid': True,
-    'grid.color': '#e0e0e0',
-    'grid.linewidth': 0.8,
-    'axes.labelsize': 14,
-    'axes.titlesize': 16,
-    'xtick.labelsize': 13,
-    'ytick.labelsize': 13,
-    'legend.fontsize': 12,
-    'figure.facecolor': 'white',
-    'axes.facecolor': 'white',
+    'axes.grid':         True,
+    'grid.color':        '#e0e0e0',
+    'grid.linewidth':    0.8,
+    'axes.labelsize':    12,
+    'axes.titlesize':    13,
+    'xtick.labelsize':   11,
+    'ytick.labelsize':   11,
+    'legend.fontsize':   10,
+    'figure.facecolor':  'white',
+    'axes.facecolor':    'white',
 })
 
 def save(fig, name):
@@ -61,80 +115,259 @@ def save(fig, name):
     plt.close(fig)
     print(f'Saved: {path}')
 
-# ── Scaling: Bubble Sort — one PNG per kind ────────────────────────────────────
-print('--- Scaling: Bubble Sort ---')
-for kind in KINDS:
-    fig, ax = plt.subplots(figsize=(10, 6))
-    x86_vals = [avg('x86_64',  'bubble_sort', n, kind) for n in NS]
-    arm_vals = [avg('aarch64', 'bubble_sort', n, kind) for n in NS]
-    ax.plot(NS, x86_vals, color=BLUE, marker='o', linewidth=2.5, markersize=8, linestyle='-',  label='Bubble Sort (x86_64)')
-    ax.plot(NS, arm_vals, color=BLUE, marker='s', linewidth=2.5, markersize=8, linestyle='--', label='Bubble Sort (aarch64)')
-    ax.set_title(f'Bubble Sort Scaling — {KIND_TITLES[kind]}', fontweight='bold')
-    ax.set_xlabel('Input Size (n)')
-    ax.set_ylabel('Time (seconds)')
-    ax.set_xticks(NS)
-    ax.set_xticklabels([f'{n:,}' for n in NS])
-    ax.legend(frameon=True)
-    save(fig, f'scaling_bubble_{kind}.png')
+def fmt_time(v):
+    if v == 0:   return '0'
+    if v < 0.001: return f'{v*1000:.2f}ms'
+    if v < 1:    return f'{v:.4f}s'
+    return f'{v:.2f}s'
 
-# ── Scaling: Merge & Quick — one PNG per kind ─────────────────────────────────
-print('--- Scaling: Merge & Quick Sort ---')
-for kind in KINDS:
-    fig, ax = plt.subplots(figsize=(10, 6))
-    for algo, color, label_base in [
-        ('merge_sort', TEAL,   'Merge Sort'),
-        ('quick_sort', ORANGE, 'Quick Sort'),
-    ]:
+nk = len(KINDS)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 1: Scaling Overview
+# Rows = input kind, Cols = algorithm
+# Each subplot: 2 lines (x86_64 solid, aarch64 dashed)
+# ─────────────────────────────────────────────────────────────────────────────
+print('--- Chart 1: Scaling Overview ---')
+fig, axes = plt.subplots(nk, 3, figsize=(21, 6 * nk))
+fig.suptitle('Sorting Algorithm Scaling — x86_64 vs aarch64',
+             fontsize=20, fontweight='bold', y=1.01)
+if nk == 1:
+    axes = [axes]
+
+for row, kind in enumerate(KINDS):
+    for col, algo in enumerate(ALGOS):
+        ax = axes[row][col]
+        color = ALGO_COLORS[algo]
         x86_vals = [avg('x86_64',  algo, n, kind) for n in NS]
         arm_vals = [avg('aarch64', algo, n, kind) for n in NS]
-        ax.plot(NS, x86_vals, color=color, marker='o', linewidth=2.5, markersize=8, linestyle='-',  label=f'{label_base} (x86_64)')
-        ax.plot(NS, arm_vals, color=color, marker='s', linewidth=2.5, markersize=8, linestyle='--', label=f'{label_base} (aarch64)')
-    ax.set_title(f'Merge & Quick Sort Scaling — {KIND_TITLES[kind]}', fontweight='bold')
-    ax.set_xlabel('Input Size (n)')
-    ax.set_ylabel('Time (seconds)')
-    ax.set_xticks(NS)
-    ax.set_xticklabels([f'{n:,}' for n in NS])
+        ax.plot(NS, x86_vals, color=color, marker='o', linewidth=2.5, markersize=8,
+                linestyle='-', label='x86_64', zorder=3)
+        ax.plot(NS, arm_vals, color=color, marker='s', linewidth=2.5, markersize=8,
+                linestyle='--', label='aarch64', alpha=0.8, zorder=3)
+        ax.set_title(f'{ALGO_LABELS[algo]}\n{KIND_LABELS[kind]}', fontweight='bold')
+        ax.set_xlabel('Input Size (n)')
+        ax.set_ylabel('Time (s)')
+        ax.set_xticks(NS)
+        ax.set_xticklabels([f'{n//1000}k' for n in NS])
+        ax.legend(frameon=True, loc='upper left')
+
+plt.tight_layout()
+save(fig, 'scaling_overview.png')
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 2: Architecture Comparison at n=40,000
+# 1×nk subplots (one per kind), grouped bars, log y-axis
+# ─────────────────────────────────────────────────────────────────────────────
+print('--- Chart 2: Architecture Comparison at n=40,000 ---')
+fig, axes = plt.subplots(1, nk, figsize=(7 * nk, 7))
+fig.suptitle('x86_64 vs aarch64 at n=40,000 (log scale)',
+             fontsize=16, fontweight='bold')
+if nk == 1:
+    axes = [axes]
+
+x = np.arange(len(ALGOS))
+
+for col, kind in enumerate(KINDS):
+    ax = axes[col]
+    x86_vals = [avg('x86_64',  algo, 40000, kind) for algo in ALGOS]
+    arm_vals = [avg('aarch64', algo, 40000, kind) for algo in ALGOS]
+    bars1 = ax.bar(x - W/2, x86_vals, W, color=X86_COLOR, label='x86_64',  zorder=3)
+    bars2 = ax.bar(x + W/2, arm_vals,  W, color=ARM_COLOR, label='aarch64', zorder=3)
+    ax.set_yscale('log')
+    ax.set_title(KIND_LABELS[kind], fontweight='bold', fontsize=14)
+    ax.set_xlabel('Algorithm')
+    ax.set_ylabel('Time (s, log scale)')
+    ax.set_xticks(x)
+    ax.set_xticklabels([ALGO_LABELS[a] for a in ALGOS])
     ax.legend(frameon=True)
-    save(fig, f'scaling_merge_quick_{kind}.png')
+    for bar in list(bars1) + list(bars2):
+        h = bar.get_height()
+        if h > 0:
+            ax.text(bar.get_x() + bar.get_width() / 2, h * 1.4,
+                    fmt_time(h), ha='center', va='bottom', fontsize=9, rotation=45)
 
-# ── Arch Compare: Bubble Sort — one PNG per n + kind ──────────────────────────
-print('--- Arch Compare: Bubble Sort ---')
-for n in NS:
-    for kind in KINDS:
-        fig, ax = plt.subplots(figsize=(7, 6))
-        x86_val = avg('x86_64',  'bubble_sort', n, kind)
-        arm_val = avg('aarch64', 'bubble_sort', n, kind)
-        ax.bar([0], [x86_val], 0.4, color=BLUE, label='x86_64')
-        ax.bar([0.45], [arm_val], 0.4, color=RED, label='aarch64')
-        ax.set_xticks([0.225])
-        ax.set_xticklabels(['Bubble Sort'])
-        ax.set_xlabel('Algorithm')
-        ax.set_ylabel('Time (seconds)')
-        ax.set_title(f'Bubble Sort — n={n:,} — {kind}', fontweight='bold')
-        ax.legend(frameon=True)
-        ax.ticklabel_format(style='sci', axis='y', scilimits=(-3, 3))
-        save(fig, f'archcompare_bubble_n{n}_{kind}.png')
+plt.tight_layout()
+save(fig, 'arch_comparison.png')
 
-# ── Arch Compare: Merge & Quick — one PNG per n + kind ────────────────────────
-print('--- Arch Compare: Merge & Quick Sort ---')
-x = np.array([0, 1])
-W = 0.35
-for n in NS:
-    for kind in KINDS:
-        fig, ax = plt.subplots(figsize=(9, 6))
-        merge_x86 = avg('x86_64',  'merge_sort', n, kind)
-        merge_arm = avg('aarch64', 'merge_sort', n, kind)
-        quick_x86 = avg('x86_64',  'quick_sort', n, kind)
-        quick_arm = avg('aarch64', 'quick_sort', n, kind)
-        ax.bar(x - W/2, [merge_x86, quick_x86], W, color=BLUE, label='x86_64')
-        ax.bar(x + W/2, [merge_arm, quick_arm],  W, color=RED,  label='aarch64')
-        ax.set_xticks(x)
-        ax.set_xticklabels(['Merge Sort', 'Quick Sort'])
-        ax.set_xlabel('Algorithm')
-        ax.set_ylabel('Time (seconds)')
-        ax.set_title(f'Merge & Quick Sort — n={n:,} — {kind}', fontweight='bold')
-        ax.legend(frameon=True)
-        ax.ticklabel_format(style='sci', axis='y', scilimits=(-3, 3))
-        save(fig, f'archcompare_merge_quick_n{n}_{kind}.png')
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 3: Input Type Sensitivity at n=40,000
+# 1×3 subplots (one per algorithm), grouped bars by kind
+# ─────────────────────────────────────────────────────────────────────────────
+print('--- Chart 3: Input Type Sensitivity at n=40,000 ---')
+fig, axes = plt.subplots(1, 3, figsize=(7 * 3, 7))
+fig.suptitle('Input Type Sensitivity at n=40,000 — x86_64 vs aarch64',
+             fontsize=16, fontweight='bold')
 
-print('\nDone! All PNGs saved to your project folder.')
+x = np.arange(nk)
+
+for col, algo in enumerate(ALGOS):
+    ax = axes[col]
+    x86_vals = [avg('x86_64',  algo, 40000, kind) for kind in KINDS]
+    arm_vals = [avg('aarch64', algo, 40000, kind) for kind in KINDS]
+    bars1 = ax.bar(x - W/2, x86_vals, W, color=X86_COLOR, label='x86_64',  zorder=3)
+    bars2 = ax.bar(x + W/2, arm_vals,  W, color=ARM_COLOR, label='aarch64', zorder=3)
+
+    all_vals = [v for v in x86_vals + arm_vals if v > 0]
+    if all_vals and max(all_vals) / min(all_vals) > 100:
+        ax.set_yscale('log')
+        ax.set_ylabel('Time (s, log scale)')
+    else:
+        ax.set_ylabel('Time (s)')
+
+    ax.set_title(ALGO_LABELS[algo], fontweight='bold', fontsize=14)
+    ax.set_xlabel('Input Type')
+    ax.set_xticks(x)
+    ax.set_xticklabels([KIND_LABELS[k] for k in KINDS], rotation=15, ha='right')
+    ax.legend(frameon=True)
+    for bar in list(bars1) + list(bars2):
+        h = bar.get_height()
+        if h > 0:
+            ax.text(bar.get_x() + bar.get_width() / 2,
+                    h * (1.4 if ax.get_yscale() == 'log' else 1.02),
+                    fmt_time(h), ha='center', va='bottom', fontsize=9, rotation=45)
+
+plt.tight_layout()
+save(fig, 'input_sensitivity.png')
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 4: Memory Scaling
+# Single plot: memory vs n for all algos × archs (log scale)
+# Annotated with space complexity class
+# ─────────────────────────────────────────────────────────────────────────────
+print('--- Chart 4: Memory Scaling ---')
+fig, ax = plt.subplots(figsize=(12, 7))
+
+for algo in ALGOS:
+    color = ALGO_COLORS[algo]
+    x86_vals = [avg_mem('x86_64',  algo, n) for n in NS]
+    arm_vals = [avg_mem('aarch64', algo, n) for n in NS]
+    ax.plot(NS, x86_vals, color=color, marker='o', linewidth=2.5, markersize=8,
+            linestyle='-', label=f'{ALGO_LABELS[algo]} (x86_64)', zorder=3)
+    ax.plot(NS, arm_vals, color=color, marker='s', linewidth=2.5, markersize=8,
+            linestyle='--', label=f'{ALGO_LABELS[algo]} (aarch64)', alpha=0.8, zorder=3)
+
+ax.set_yscale('log')
+ax.set_title('Memory Usage Scaling — x86_64 vs aarch64', fontweight='bold', fontsize=16)
+ax.set_xlabel('Input Size (n)')
+ax.set_ylabel('Memory (KB, log scale)')
+ax.set_xticks(NS)
+ax.set_xticklabels([f'{n//1000}k' for n in NS])
+ax.legend(frameon=True, ncol=2)
+
+ax.annotate('O(n) — Merge Sort',   xy=(40000, avg_mem('x86_64', 'merge_sort',  40000)),
+            xytext=(-80,  10), textcoords='offset points', fontsize=10,
+            color=ALGO_COLORS['merge_sort'],  fontweight='bold')
+ax.annotate('O(log n) — Quick Sort', xy=(40000, avg_mem('x86_64', 'quick_sort', 40000)),
+            xytext=(-120, 10), textcoords='offset points', fontsize=10,
+            color=ALGO_COLORS['quick_sort'], fontweight='bold')
+ax.annotate('O(1) — Bubble Sort',  xy=(40000, avg_mem('x86_64', 'bubble_sort', 40000)),
+            xytext=(-110,-20), textcoords='offset points', fontsize=10,
+            color=ALGO_COLORS['bubble_sort'], fontweight='bold')
+
+plt.tight_layout()
+save(fig, 'memory_scaling.png')
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 5: Time vs Memory Tradeoff at n=40,000
+# Log-log scatter: x=memory_kb, y=seconds (random input)
+# ─────────────────────────────────────────────────────────────────────────────
+print('--- Chart 5: Memory vs Time Tradeoff at n=40,000 ---')
+fig, ax = plt.subplots(figsize=(12, 7))
+
+markers = {'x86_64': 'o', 'aarch64': 's'}
+for arch in ['x86_64', 'aarch64']:
+    for algo in ALGOS:
+        mem  = avg_mem(arch, algo, 40000)
+        time = avg(arch, algo, 40000, 'random')
+        color = ALGO_COLORS[algo]
+        ax.scatter(mem, time, color=color, marker=markers[arch],
+                   s=180, zorder=4, edgecolors='white', linewidths=1.5,
+                   label=f'{ALGO_LABELS[algo]} ({arch})')
+        ax.annotate(f'{ALGO_LABELS[algo]}\n({arch})',
+                    xy=(mem, time), xytext=(8, 4), textcoords='offset points',
+                    fontsize=9, color=color)
+
+ax.set_xscale('log')
+ax.set_yscale('log')
+ax.set_title('Time vs Memory Tradeoff at n=40,000 — Random Input\n(lower-left = better)',
+             fontweight='bold', fontsize=15)
+ax.set_xlabel('Memory Usage (KB, log scale)')
+ax.set_ylabel('Time (s, log scale)')
+ax.legend(frameon=True, ncol=2, fontsize=9)
+
+plt.tight_layout()
+save(fig, 'memory_vs_time_tradeoff.png')
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Chart 6: Hardware Performance Counters (only when perf data present)
+# 3 rows × nk cols — one row per professor-requested metric:
+#   row 0: branch misprediction rate  = branch_misses / branch_instructions
+#   row 1: cache miss rate            = cache_misses / cache_references
+#   row 2: pipeline stall rate        = (stalled_cycles_frontend + stalled_cycles_backend) / cycles
+# Each subplot: grouped bars (3 algos × 2 archs) at n=40,000
+# ─────────────────────────────────────────────────────────────────────────────
+if HAS_PERF_DATA:
+    perf_kinds = [k for k in KINDS
+                  if any(perf_groups.get((arch, algo, 40000, k, 'branch_misses'))
+                         for arch in ('x86_64', 'aarch64') for algo in ALGOS)]
+    if perf_kinds:
+        print('--- Chart 6: Hardware Performance Counters (rates) ---')
+        npk = len(perf_kinds)
+        fig, axes = plt.subplots(3, npk, figsize=(7 * npk, 18))
+        fig.suptitle(
+            'Hardware Performance Counter Rates at n=40,000\n'
+            'Branch misprediction rate · Cache miss rate · Pipeline stall rate',
+            fontsize=14, fontweight='bold'
+        )
+        if npk == 1:
+            axes = [[axes[0]], [axes[1]], [axes[2]]]
+
+        x = np.arange(len(ALGOS))
+
+        def _stall_rate(arch, algo, n, kind):
+            fe = avg_perf(arch, algo, n, kind, 'stalled_cycles_frontend')
+            be = avg_perf(arch, algo, n, kind, 'stalled_cycles_backend')
+            cy = avg_perf(arch, algo, n, kind, 'cycles')
+            return (fe + be) / cy if cy > 0 else 0
+
+        metric_rows = [
+            ('Branch Misprediction Rate',
+             lambda arch, algo, k: rate_perf(arch, algo, 40000, k,
+                                             'branch_misses', 'branch_instructions'),
+             'Misses / Total Branches'),
+            ('Cache Miss Rate',
+             lambda arch, algo, k: rate_perf(arch, algo, 40000, k,
+                                             'cache_misses', 'cache_references'),
+             'Misses / Total Cache Refs'),
+            ('Pipeline Stall Rate',
+             lambda arch, algo, k: _stall_rate(arch, algo, 40000, k),
+             'Stalled Cycles / Total Cycles'),
+        ]
+
+        for row, (title, val_fn, ylabel) in enumerate(metric_rows):
+            for col, kind in enumerate(perf_kinds):
+                ax = axes[row][col]
+                x86_vals = [val_fn('x86_64',  algo, kind) for algo in ALGOS]
+                arm_vals = [val_fn('aarch64', algo, kind) for algo in ALGOS]
+                bars1 = ax.bar(x - W/2, x86_vals, W, color=X86_COLOR, label='x86_64',  zorder=3)
+                bars2 = ax.bar(x + W/2, arm_vals,  W, color=ARM_COLOR, label='aarch64', zorder=3)
+                ax.set_title(f'{title}\n{KIND_LABELS[kind]}', fontweight='bold')
+                ax.set_xlabel('Algorithm')
+                ax.set_ylabel(ylabel)
+                ax.set_xticks(x)
+                ax.set_xticklabels([ALGO_LABELS[a] for a in ALGOS])
+                ax.yaxis.set_major_formatter(
+                    plt.FuncFormatter(lambda v, _: f'{v:.1%}'))
+                ax.legend(frameon=True)
+                for bar in list(bars1) + list(bars2):
+                    h = bar.get_height()
+                    if h > 0:
+                        ax.text(bar.get_x() + bar.get_width() / 2, h * 1.02,
+                                f'{h:.1%}', ha='center', va='bottom', fontsize=8)
+
+        plt.tight_layout()
+        save(fig, 'perf_counters.png')
+
+charts_saved = 5 + (1 if HAS_PERF_DATA else 0)
+print(f'\nDone! {charts_saved} PNGs saved.')
