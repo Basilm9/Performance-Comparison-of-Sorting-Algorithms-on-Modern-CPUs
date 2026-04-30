@@ -5,7 +5,7 @@ quick_sort,1000,random,0.001486,1.4,x86_64,,,
 bubble_sort,5000,random,1.395295,0.3,x86_64,,,
 merge_sort,5000,random,0.012305,40.6,x86_64,,,
 quick_sort,5000,random,0.009156,1.8,x86_64,,,
-bubble_sort,10000,random,5.765696,0.3,x86_64,,,5.9
+bubble_sort,10000,random,5.765696,0.3,x86_64,,,6.5
 merge_sort,10000,random,0.026504,79.7,x86_64,,,7.2
 quick_sort,10000,random,0.019298,1.9,x86_64,,,9.0
 bubble_sort,20000,random,23.325374,0.3,x86_64,,,
@@ -21,7 +21,7 @@ bubble_sort,5000,sorted,0.000369,0.2,x86_64,,,
 merge_sort,5000,sorted,0.010897,40.6,x86_64,,,
 quick_sort,5000,sorted,0.008547,1.6,x86_64,,,
 bubble_sort,10000,sorted,0.000751,0.2,x86_64,,,8.3
-merge_sort,10000,sorted,0.023613,79.7,x86_64,,,7.1
+merge_sort,10000,sorted,0.023613,79.7,x86_64,,,7.4
 quick_sort,10000,sorted,0.019164,1.6,x86_64,,,8.9
 bubble_sort,20000,sorted,0.001604,0.2,x86_64,,,
 merge_sort,20000,sorted,0.051976,157.9,x86_64,,,
@@ -52,7 +52,7 @@ merge_sort,5000,mostly_sorted,0.011053,40.5,x86_64,,,
 quick_sort,5000,mostly_sorted,0.008942,1.7,x86_64,,,
 bubble_sort,10000,mostly_sorted,0.003002,0.2,x86_64,,,7.8
 merge_sort,10000,mostly_sorted,0.024037,79.6,x86_64,,,7.1
-quick_sort,10000,mostly_sorted,0.018555,1.7,x86_64,,,9.1
+quick_sort,10000,mostly_sorted,0.018555,1.7,x86_64,,,9.0
 bubble_sort,20000,mostly_sorted,0.006118,0.2,x86_64,,,
 merge_sort,20000,mostly_sorted,0.050743,157.8,x86_64,,,
 quick_sort,20000,mostly_sorted,0.040879,2.2,x86_64,,,
