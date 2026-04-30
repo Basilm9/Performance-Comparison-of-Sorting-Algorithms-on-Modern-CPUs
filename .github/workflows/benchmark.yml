@@ -29,12 +29,6 @@ jobs:
           rm -f data/results-${{ matrix.runner }}.csv
           python tests/test_sorts.py --output data/results-${{ matrix.runner }}.csv
 
-      - name: Install valgrind
-        run: sudo apt-get install -y valgrind
-
-      - name: Run valgrind (cache + branch miss rates)
-        run: python tests/run_valgrind.py --output data/results-${{ matrix.runner }}.csv
-
       - name: Commit results
         run: |
           git config user.email "andre.mercado44@gmail.com"
