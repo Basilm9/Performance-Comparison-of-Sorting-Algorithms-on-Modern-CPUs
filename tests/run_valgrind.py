@@ -1,7 +1,7 @@
 """
 Run valgrind cachegrind + branch simulation for all algo × kind combinations.
 Merges d1_miss_rate, lld_miss_rate, branch_miss_rate into existing results CSV
-(only for n=5000 rows — valgrind is run at that size only).
+(only for n=10000 rows — valgrind is run at that size only).
 
 Usage: python tests/run_valgrind.py --output data/results-<runner>.csv
 """
@@ -17,23 +17,27 @@ FIELDNAMES = ['algorithm', 'n', 'kind', 'seconds_mean', 'memory_kb', 'arch',
               'd1_miss_rate', 'lld_miss_rate', 'branch_miss_rate']
 
 
-def run_one(algo, kind):
+def run_one(algo, kind, debug=False):
     cmd = [
         'valgrind', '--tool=cachegrind', '--branch-sim=yes',
         '--cachegrind-out-file=/dev/null',
         sys.executable, RUNNER, algo, str(N), kind,
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    if debug:
+        print('=== valgrind stderr (first run) ===')
+        print(result.stderr[-3000:])
+        print('=== end ===', flush=True)
     return parse(result.stderr)
 
 
 def parse(text):
     def pct(pattern):
-        m = re.search(pattern, text)
+        m = re.search(pattern, text, re.IGNORECASE)
         return m.group(1).replace(',', '') if m else ''
     return {
-        'd1_miss_rate':     pct(r'D1  miss rate:\s+([\d.,]+)%'),
-        'lld_miss_rate':    pct(r'LLd miss rate:\s+([\d.,]+)%'),
+        'd1_miss_rate':     pct(r'D1\s+miss rate:\s+([\d.,]+)%'),
+        'lld_miss_rate':    pct(r'LLd\s+miss rate:\s+([\d.,]+)%'),
         'branch_miss_rate': pct(r'Mispred rate:\s+([\d.,]+)%'),
     }
 
@@ -50,10 +54,12 @@ def main():
 
     # build lookup: (algorithm, kind) -> valgrind metrics
     vg = {}
+    first = True
     for algo in ALGOS:
         for kind in KINDS:
             print(f'Running valgrind: {algo} n={N} kind={kind} ...', flush=True)
-            metrics = run_one(algo, kind)
+            metrics = run_one(algo, kind, debug=first)
+            first = False
             vg[(algo, kind)] = metrics
             print(f"  d1={metrics['d1_miss_rate']}% lld={metrics['lld_miss_rate']}% branch={metrics['branch_miss_rate']}%")
 
