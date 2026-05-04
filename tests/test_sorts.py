@@ -5,7 +5,7 @@ import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from sorting.sorts import bubble_sort, merge_sort, quick_sort
+from sorting.algorithms import bubble_sort, merge_sort, quick_sort
 from benchmark import run_benchmarks
 
 INPUT_SIZES = [1_000, 5_000, 10_000, 20_000, 40_000]
@@ -33,10 +33,9 @@ def generate_input(n, kind):
         return data
 
 
-RANDOM_DATA       = {n: generate_input(n, "random")       for n in INPUT_SIZES}
-SORTED_DATA       = {n: generate_input(n, "sorted")       for n in INPUT_SIZES}
-REVERSE_DATA      = {n: generate_input(n, "reverse")      for n in INPUT_SIZES}
-MOSTLY_SORTED_DATA = {n: generate_input(n, "mostly_sorted") for n in INPUT_SIZES}
+KINDS = ["random", "sorted", "reverse", "mostly_sorted"]
+
+DATASETS = {kind: {n: generate_input(n, kind) for n in INPUT_SIZES} for kind in KINDS}
 
 
 def _assert_sorted(fn, datasets, label):
@@ -47,24 +46,18 @@ def _assert_sorted(fn, datasets, label):
 
 
 def test_bubble_sort():
-    _assert_sorted(bubble_sort, RANDOM_DATA,        "random")
-    _assert_sorted(bubble_sort, SORTED_DATA,        "sorted")
-    _assert_sorted(bubble_sort, REVERSE_DATA,       "reverse")
-    _assert_sorted(bubble_sort, MOSTLY_SORTED_DATA, "mostly_sorted")
+    for kind, data in DATASETS.items():
+        _assert_sorted(bubble_sort, data, kind)
 
 
 def test_merge_sort():
-    _assert_sorted(merge_sort, RANDOM_DATA,        "random")
-    _assert_sorted(merge_sort, SORTED_DATA,        "sorted")
-    _assert_sorted(merge_sort, REVERSE_DATA,       "reverse")
-    _assert_sorted(merge_sort, MOSTLY_SORTED_DATA, "mostly_sorted")
+    for kind, data in DATASETS.items():
+        _assert_sorted(merge_sort, data, kind)
 
 
 def test_quick_sort():
-    _assert_sorted(quick_sort, RANDOM_DATA,        "random")
-    _assert_sorted(quick_sort, SORTED_DATA,        "sorted")
-    _assert_sorted(quick_sort, REVERSE_DATA,       "reverse")
-    _assert_sorted(quick_sort, MOSTLY_SORTED_DATA, "mostly_sorted")
+    for kind, data in DATASETS.items():
+        _assert_sorted(quick_sort, data, kind)
 
 
 if __name__ == "__main__":
@@ -76,13 +69,7 @@ if __name__ == "__main__":
     test_bubble_sort()
     test_merge_sort()
     test_quick_sort()
-    print("All tests passed.")
-    print()
-    print("--- random ---")
-    run_benchmarks(ALGORITHMS, RANDOM_DATA,        kind="random",        output_file=output)
-    print("--- sorted ---")
-    run_benchmarks(ALGORITHMS, SORTED_DATA,        kind="sorted",        output_file=output)
-    print("--- reverse ---")
-    run_benchmarks(ALGORITHMS, REVERSE_DATA,       kind="reverse",       output_file=output)
-    print("--- mostly_sorted ---")
-    run_benchmarks(ALGORITHMS, MOSTLY_SORTED_DATA, kind="mostly_sorted", output_file=output)
+    print("All tests passed.\n")
+    for kind, data in DATASETS.items():
+        print(f"--- {kind} ---")
+        run_benchmarks(ALGORITHMS, data, kind=kind, output_file=output)

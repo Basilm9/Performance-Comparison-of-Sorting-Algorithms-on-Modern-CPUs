@@ -2,8 +2,7 @@
 Run valgrind cachegrind + branch simulation for all algo × kind combinations.
 Compiles sort_runner.c and uses it as the valgrind target (avoids Python's
 billions of interpreter instructions which block cache simulation).
-Merges d1_miss_rate, lld_miss_rate, branch_miss_rate into existing results CSV
-(only for n=10000 rows).
+Merges d1_miss_rate, lld_miss_rate, branch_miss_rate into existing results CSV.
 
 Usage: python tests/run_valgrind.py --output data/results-<runner>.csv
 """
@@ -32,7 +31,7 @@ def compile_c():
     print(f'Compiled {C_SRC} -> {C_BIN}', flush=True)
 
 
-def run_one(algo, n, kind, debug=False):
+def run_one(algo, n, kind):
     tmp = f'/tmp/cg_{algo}_{n}_{kind}.out'
     cmd = [
         'valgrind', '--tool=cachegrind', '--cache-sim=yes', '--branch-sim=yes',
@@ -44,10 +43,6 @@ def run_one(algo, n, kind, debug=False):
         os.remove(tmp)
     except FileNotFoundError:
         pass
-    if debug:
-        print('=== valgrind stderr (first run) ===')
-        print(result.stderr[-3000:])
-        print('=== end ===', flush=True)
     return parse(result.stderr)
 
 
@@ -74,24 +69,19 @@ def main():
         rows = list(csv.DictReader(f))
 
     vg = {}
-    first = True
     for n in NS:
         for algo in ALGOS:
             for kind in KINDS:
                 print(f'Running valgrind: {algo} n={n} kind={kind} ...', flush=True)
-                metrics = run_one(algo, n, kind, debug=first)
-                first = False
+                metrics = run_one(algo, n, kind)
                 vg[(algo, n, kind)] = metrics
                 print(f"  d1={metrics['d1_miss_rate']}% lld={metrics['lld_miss_rate']}% branch={metrics['branch_miss_rate']}%")
 
     for row in rows:
         key = (row['algorithm'], int(row['n']), row['kind'])
-        if key in vg:
-            row.update(vg[key])
-
-    for row in rows:
+        m = vg.get(key, {})
         for col in ('d1_miss_rate', 'lld_miss_rate', 'branch_miss_rate'):
-            row.setdefault(col, '')
+            row[col] = m.get(col, row.get(col, ''))
 
     with open(output, 'w', newline='') as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES, extrasaction='ignore')

@@ -1,7 +1,7 @@
 """
 Benchmark Chart Generator
-Produces 7 PNGs: 2 headline + 3 time + 2 memory.
-Reads from the two CSV files in the same folder as this script.
+Produces PNGs for timing, memory, and valgrind miss rates.
+Reads CSVs from data/ and writes PNGs to data/.
 """
 
 import csv, os, statistics
@@ -11,10 +11,11 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(os.path.abspath(__file__))
+DATA = os.path.join(ROOT, 'data')
 
 def load_csv(filename):
-    with open(os.path.join(BASE, filename), newline='', encoding='utf-8') as f:
+    with open(os.path.join(DATA, filename), newline='', encoding='utf-8') as f:
         return list(csv.DictReader(f))
 
 all_rows = (
@@ -55,11 +56,12 @@ ALGO_COLORS  = {'bubble_sort': '#4472C4', 'merge_sort': '#2BAA8A', 'quick_sort':
 X86_COLOR = '#4472C4'
 ARM_COLOR = '#C0504D'
 W = 0.35
+ARCHS = ['x86_64', 'aarch64']
 
 # only render kinds that actually have data
 KINDS = [k for k in ALL_KINDS
          if any(groups.get((arch, algo, n, k))
-                for arch in ('x86_64', 'aarch64')
+                for arch in ARCHS
                 for algo in ALGOS
                 for n in NS)]
 
@@ -80,7 +82,7 @@ plt.rcParams.update({
 })
 
 def save(fig, name):
-    path = os.path.join(BASE, name)
+    path = os.path.join(DATA, name)
     fig.savefig(path, dpi=150, bbox_inches='tight')
     plt.close(fig)
     print(f'Saved: {path}')
@@ -167,7 +169,7 @@ ARCH_STYLE2  = {'x86_64': '-',  'aarch64': '--'}
 ARCH_MARKER2 = {'x86_64': 'o',  'aarch64': 's'}
 
 for algo in ALGOS:
-    for arch in ['x86_64', 'aarch64']:
+    for arch in ARCHS:
         vals = [statistics.mean(avg(arch, algo, n, k) for k in KINDS if avg(arch, algo, n, k) > 0)
                 for n in NS]
         ax.plot(NS, vals,
@@ -245,7 +247,7 @@ print('--- Chart 5: Memory vs Time Tradeoff at n=40,000 ---')
 fig, ax = plt.subplots(figsize=(12, 7))
 
 markers = {'x86_64': 'o', 'aarch64': 's'}
-for arch in ['x86_64', 'aarch64']:
+for arch in ARCHS:
     for algo in ALGOS:
         mem  = avg_mem(arch, algo, 40000)
         time = avg(arch, algo, 40000, 'random')
@@ -300,7 +302,7 @@ if vg_rows:
 
     vg_kinds = [k for k in KINDS
                 if any(vg_groups.get((arch, algo, k, metric))
-                       for arch in ('x86_64', 'aarch64')
+                       for arch in ARCHS
                        for algo in ALGOS
                        for metric, _, _ in VG_METRICS)]
 
@@ -314,7 +316,7 @@ if vg_rows:
 
         for metric, ylabel, filename in VG_METRICS:
             if not any(vg_groups.get((arch, algo, k, metric))
-                       for arch in ('x86_64', 'aarch64')
+                       for arch in ARCHS
                        for algo in ALGOS for k in vg_kinds):
                 continue
 
